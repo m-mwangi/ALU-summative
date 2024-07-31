@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %} Home {% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-md-3">
+      <div class="profile-menu">
+        <img src="{{ current_user.profile_picture }}" alt="Profile Picture" class="profile-pic">
+        <h4>{{ current_user.username }}</h4>
+        <ul>
+          <li><a href="{{ url_for('profile.edit') }}">Edit Profile</a></li>
+          <li><a href="#">Settings</a></li>
+          <li><a href="#">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-9">
+      <div class="search-bar">
+        <form method="GET" action="">
+          <input type="text" name="query" placeholder="Search for users or conversations">
+          <button type="submit">Search</button>
+        </form>
+      </div>
+
+      <div class="search-results">
+        {% if query %}
+          {% for user in users %}
+            <a href="{{ url_for('profile.show', username=user.username) }}">
+              <div class="user-result">
+                <h4>{{ user.username }}</h4>
+              </div>
+            </a>
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      <div class="conversation-list">
+        {% for conversation in conversations %}
+          <a href="{{ url_for('chat.conversation', conversation_id=conversation.id) }}">
+            <div class="conversation">
+              <h4>Conversation with {{ conversation.participants[0].username }}</h4>
+              <p>Last message: {{ conversation.last_ message }}</p>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} 

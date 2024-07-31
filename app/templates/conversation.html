@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Conversation with {{ conversation.participants[1].username }}</h1>
+<ul class="message-list">
+    {% for message in messages %}
+    <li class="message">
+        <div class="message-content">
+            <strong>{{ message.sender.username }}:</strong> {{ message.content }}
+        </div>
+        <div class="message-meta">
+            <span class="timestamp">{{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+            {% if message.is_read %}
+                <span class="read">Read</span>
+            {% endif %}
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
