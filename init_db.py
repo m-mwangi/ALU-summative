@@ -8,4 +8,3 @@ with app.app_context():
         print("Database initialized!")
     except Exception as e:
         print(f"Error creating database: {e}")
-        # Consider logging the error or taking other actions

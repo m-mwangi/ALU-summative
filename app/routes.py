@@ -1,18 +1,27 @@
 from flask import Blueprint, render_template, flash, redirect, url_for, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 import os
-from app.database import db
-from app.models import User, Conversation, Message
 from flask_login import login_user, logout_user, current_user, login_required
+from app import db
+from app.models import User, Conversation, Message
 from app.forms import LoginForm, RegistrationForm, EditProfileForm
 
+# Define Blueprints
 auth = Blueprint('auth', __name__)
-routes_bp = Blueprint('routes', __name__)
 main = Blueprint('main', __name__)
+
+def get_models_and_forms():
+    from app import db
+    from app.models import User, Conversation, Message
+    from app.forms import LoginForm, RegistrationForm, EditProfileForm
+    return db, User, Conversation, Message, LoginForm, RegistrationForm, EditProfileForm
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
+    db, User, _, _, LoginForm, _, _ = get_models_and_forms()
+
     if current_user.is_authenticated:
+        flash('You are already logged in!', 'info')
         return redirect(url_for('main.home'))
 
     form = LoginForm()
@@ -28,12 +37,23 @@ def login():
 
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
+    db, User, _, _, _, RegistrationForm, _ = get_models_and_forms()
+
     if current_user.is_authenticated:
+        flash('You are already logged in!', 'info')
         return redirect(url_for('main.home'))
 
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User(username=form.username.data, email=form.email.data)
+        username = form.username.data
+        email = form.email.data
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists!', 'danger')
+            return render_template('register.html', title='Register', form=form)
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists!', 'danger')
+            return render_template('register.html', title='Register', form=form)
+        user = User(username=username, email=email)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
@@ -51,6 +71,8 @@ def logout():
 @main.route('/', methods=['GET'])
 @login_required
 def home():
+    db, User, Conversation, _, _, _, _ = get_models_and_forms()
+
     query = request.args.get('query')
     users = User.query.filter(User.username.ilike(f"%{query}%")).all() if query else []
     conversations = Conversation.query.filter(Conversation.participants.contains(current_user)).all()
@@ -59,6 +81,8 @@ def home():
 @main.route('/profile/<username>')
 @login_required
 def profile(username):
+    db, User, _, _, _, _, _ = get_models_and_forms()
+
     user = User.query.filter_by(username=username).first()
     if not user:
         flash('User not found!', 'danger')
@@ -68,6 +92,8 @@ def profile(username):
 @main.route('/profile/<username>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_profile(username):
+    db, User, _, _, _, EditProfileForm, _ = get_models_and_forms()
+
     user = User.query.filter_by(username=username).first()
     if not user:
         flash('User not found!', 'danger')
@@ -86,6 +112,9 @@ def edit_profile(username):
             filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             form.profile_picture.data.save(filepath)
             user.profile_picture = filename
+            if not is_valid_image(filepath):
+                flash('Invalid image file!', 'danger')
+                return render_template('edit_profile.html', user=user, form=form)
         db.session.commit()
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('main.profile', username=username))
@@ -94,22 +123,28 @@ def edit_profile(username):
     form.profile_picture.data = user.profile_picture
     return render_template('edit_profile.html', user=user, form=form)
 
+def is_valid_image(filepath):
+    mime_type = mimetypes.guess_type(filepath)[0]
+    return mime_type and mime_type.startswith('image/')
+
 @main.route('/conversations')
 @login_required
 def conversations():
+    db, _, _, _, _, _, _ = get_models_and_forms()
     conversations = current_user.conversations
     return render_template('conversations.html', conversations=conversations)
 
 @main.route('/conversation/<int:conversation_id>')
 @login_required
 def conversation(conversation_id):
+    db, _, Conversation, Message, _, _, _ = get_models_and_forms()
+
     conversation = Conversation.query.get_or_404(conversation_id)
     if current_user not in conversation.participants:
         flash('Unauthorized access', 'danger')
         return redirect(url_for('main.home'))
     messages = conversation.messages.order_by(Message.timestamp.asc())
 
-    # Mark all messages as read for the current user
     for message in messages:
         if message.recipient == current_user and not message.is_read:
             message.is_read = True
@@ -120,6 +155,8 @@ def conversation(conversation_id):
 @main.route('/send_message', methods=['POST'])
 @login_required
 def send_message():
+    db, User, Conversation, Message, _, _, _ = get_models_and_forms()
+
     data = request.get_json()
     recipient_username = data.get('recipient_username')
     message_content = data.get('message')
@@ -143,4 +180,4 @@ def send_message():
     db.session.add(message)
     db.session.commit()
 
-    return jsonify({'message': 'Message sent successfully'}) 
+    return jsonify({'message': 'Message sent successfully'})
